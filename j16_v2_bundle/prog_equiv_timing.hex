@@ -1,0 +1,57 @@
+# Commit/trace equivalence program (INVOKE success: multi-RES + near-budget timing)
+# Goal:
+#   - Exercise S_INV_WAIT close to inv_budget without timing out.
+#   - Exercise S_INV_RES with pushes=2.
+#   - Validate observable effect by storing results into user RAM and self-checking.
+#
+# Primitive fid=0x0002 metadata (primtab.hex):
+#   pops=0, pushes=2, base_cycles=10 (model=0 => inv_budget=10)
+#
+# The invoke stub for fid=0x0002 performs:
+#   - Multi-cycle wait with two RES writes during S_INV_WAIT
+#   - RES[0] = 0xCAFE
+#   - RES[1] = 0xBABE
+#   - Completion late (near budget) but before timeout
+#
+# Program:
+#   INVOKE 0x0002 => pushes [RES0, RES1] (TOS=RES1)
+#   ST [0x82] => store RES1 (0xBABE)
+#   ST [0x81] => store RES0 (0xCAFE)
+#   Self-check both RAM locations; TRAP on mismatch
+#   HALT
+
+# 0: INVOKE fid=0x0002 (A=0x0, B=0x02)
+B002
+# 1: ST [0x82] (store top = 0xBABE)
+3182
+# 2: ST [0x81] (store next = 0xCAFE)
+3181
+
+# 3: LD [0x81]
+3081
+# 4: LIT16
+6000
+# 5: imm expected = 0xCAFE
+CAFE
+# 6: EQ
+1A00
+# 7: JNZ +1 (skip TRAP)
+4201
+# 8: TRAP aux=0x11
+F111
+
+# 9: LD [0x82]
+3082
+# 10: LIT16
+6000
+# 11: imm expected = 0xBABE
+BABE
+# 12: EQ
+1A00
+# 13: JNZ +1
+4201
+# 14: TRAP aux=0x12
+F112
+
+# 15: HALT
+F000

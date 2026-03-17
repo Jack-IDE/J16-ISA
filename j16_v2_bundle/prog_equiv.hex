@@ -1,0 +1,44 @@
+# Commit/trace equivalence program (INVOKE success + observable check)
+# Goal:
+#   - Force the multi-cycle INVOKE path:
+#       S_INV_ARG -> S_INV_WAIT -> S_INV_RES -> trace_commit_pre
+#   - ALSO validate something observable:
+#       store the INVOKE result to user RAM[0x80], then self-check it.
+#
+# Primitive fid=0x0001 has pops=2, pushes=1 in primtab.hex (base_cycles=12).
+# The invoke stub + reference primitive for fid=0x0001 implement:
+#   RES[0] = ARG[0] XOR ARG[1]
+#
+# Program:
+#   push 0x1111, 0x2222
+#   INVOKE 0x0001 => 0x3333
+#   ST [0x80]     => user RAM write (observable)
+#   LD [0x80]; push 0x3333; EQ; if false => TRAP
+#   HALT
+
+# 0: LIT16
+6000
+# 1: imm
+1111
+# 2: LIT16
+6000
+# 3: imm
+2222
+# 4: INVOKE fid=0x0001  (A=0x0, B=0x01)
+B001
+# 5: ST [0x80]  (OP_MEM=0x3, A=ST=0x1, B=0x80)
+3180
+# 6: LD [0x80]  (OP_MEM=0x3, A=LD=0x0, B=0x80)
+3080
+# 7: LIT16
+6000
+# 8: imm expected = 0x3333
+3333
+# 9: EQ (OP_ALU=0x1, A=EQ=0xA)
+1A00
+# 10: JNZ +1  (if equal, skip TRAP to HALT)
+4201
+# 11: TRAP aux=0x01 (should not be reached)
+F101
+# 12: HALT
+F000

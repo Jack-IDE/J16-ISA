@@ -1,0 +1,34 @@
+{
+  "banks": [
+    {
+      "allow_prim_caps": [
+        "pure"
+      ],
+      "bank": 1,
+      "caps": [
+        "pure"
+      ],
+      "name": "corelib",
+      "symbols": [
+        {
+          "abi": {
+            "pops": 2,
+            "pushes": 1
+          },
+          "budget": {
+            "max_cycles": 2
+          },
+          "caps": [
+            "pure"
+          ],
+          "index": 0,
+          "name": "ADD16",
+          "src": "sym/corelib/add16.s"
+        }
+      ],
+      "version": "0.1.0"
+    }
+  ],
+  "format": "j16.symbols.v0",
+  "isa": "docs/isa_v2.json"
+}

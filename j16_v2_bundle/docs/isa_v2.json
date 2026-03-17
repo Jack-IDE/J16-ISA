@@ -1,0 +1,678 @@
+{
+  "manifest": {
+    "name": "J16 ISA v2",
+    "kind": "isa_manifest",
+    "version": "v2.0",
+    "schema_version": 2,
+    "frozen": true,
+    "generated": false,
+    "design_intent": "Non-Turing-complete, termination-guaranteed, certifiable execution substrate. Security is structural, not a runtime mode."
+  },
+  "encoding": {
+    "word_bits": 16,
+    "layout": {
+      "op": {
+        "bits": [
+          15,
+          12
+        ]
+      },
+      "a": {
+        "bits": [
+          11,
+          8
+        ]
+      },
+      "b": {
+        "bits": [
+          7,
+          0
+        ]
+      }
+    },
+    "endianness_words": "big_endian"
+  },
+  "architectural_state": {
+    "pc": {
+      "internal_bits": 32,
+      "reset": 0,
+      "addressing": "word_index",
+      "oob_fault": {
+        "status": "ST_PC_OOB",
+        "aux": "pc_low16"
+      }
+    },
+    "dstack": {
+      "depth": 256,
+      "word_bits": 16,
+      "sp_name": "DSP",
+      "sp_semantics": "count",
+      "sp_range": [
+        0,
+        256
+      ]
+    },
+    "note_no_rstack": "Return stack is REMOVED in v2. CALL/RET do not exist. No recursion, no unbounded control flow."
+  },
+  "memory_map": {
+    "total_words": 256,
+    "word_bits": 16,
+    "regions": [
+      {
+        "name": "ARG",
+        "start": "0x00",
+        "end": "0x3F",
+        "access": "invoke_only",
+        "note": "INVOKE argument marshalling"
+      },
+      {
+        "name": "RES",
+        "start": "0x40",
+        "end": "0x7F",
+        "access": "invoke_only",
+        "note": "INVOKE result marshalling"
+      },
+      {
+        "name": "USER",
+        "start": "0x80",
+        "end": "0xFD",
+        "access": "program_rw",
+        "note": "User program RAM"
+      },
+      {
+        "name": "AUX",
+        "start": "0xFE",
+        "end": "0xFE",
+        "access": "sealed_read",
+        "note": "Fault auxiliary info; program read via SYS_STATUS_AUX only"
+      },
+      {
+        "name": "STATUS",
+        "start": "0xFF",
+        "end": "0xFF",
+        "access": "sealed_read",
+        "note": "Fault status; program read via SYS_STATUS_AUX only"
+      }
+    ],
+    "rules": {
+      "program_memops_forbidden": [
+        "0x00..0x7F",
+        "0xFE..0xFF"
+      ],
+      "program_memop_violation_fault": "ST_MEM_PROT",
+      "invoke_membus_limited_to": [
+        "0x00..0x7F"
+      ],
+      "invoke_membus_violation": "ST_MEM_PROT"
+    },
+    "constants": {
+      "ARG_BASE": "0x00",
+      "RES_BASE": "0x40",
+      "USER_START": "0x80",
+      "USER_END": "0xFD",
+      "AUX_ADDR": "0xFE",
+      "STATUS_ADDR": "0xFF",
+      "PROT_LO_END": "0x7F",
+      "PROT_HI_START": "0xFE"
+    }
+  },
+  "common_rules": {
+    "arith": {
+      "type": "u16",
+      "wrap": "mod_2^16"
+    },
+    "shift_amount": {
+      "expr": "b & 0x0F",
+      "range": [
+        0,
+        15
+      ]
+    },
+    "ctrl_target": {
+      "expr": "target = (pc_before+1) + signext8(b)"
+    },
+    "backward_branch_rule": "B[7]=1 on any CTRL instruction is ST_ILLEGAL_ENC. This is an encoding rule, not a runtime check.",
+    "illegal_encoding_fault": {
+      "status": "ST_ILLEGAL_ENC",
+      "aux": "ir_word"
+    },
+    "termination_requirement": "Every reachable execution path MUST reach a HALT. Programs lacking a provable HALT path are rejected by the certifier."
+  },
+  "instructions": [
+    {
+      "op": "0x0",
+      "family": "NOP",
+      "meaning": "No operation. PC advances by 1.",
+      "forms": [
+        {
+          "a": "0x0",
+          "b": "0x00",
+          "stack": {
+            "pops": 0,
+            "pushes": 0
+          },
+          "effects": "pc+=1"
+        }
+      ],
+      "illegal_a_b": "any A != 0x0 or any B != 0x00 is ST_ILLEGAL_ENC (reserved for future)"
+    },
+    {
+      "op": "0x2",
+      "family": "LIT",
+      "meaning": "Push 12-bit zero-extended immediate.",
+      "forms": [
+        {
+          "a": "imm[11:8]",
+          "b": "imm[7:0]",
+          "stack": {
+            "pops": 0,
+            "pushes": 1
+          },
+          "push": "u16((a<<8)|b)",
+          "effects": "pc+=1"
+        }
+      ]
+    },
+    {
+      "op": "0x6",
+      "family": "LIT16",
+      "meaning": "Push full 16-bit immediate. The next ROM word (pc+1) is the literal value. PC advances by 2.",
+      "forms": [
+        {
+          "a": "0x0",
+          "b": "0x00",
+          "stack": {
+            "pops": 0,
+            "pushes": 1
+          },
+          "push": "rom[pc+1]",
+          "effects": "pc+=2",
+          "note": "A and B fields must be 0x0/0x00. Any other encoding is ST_ILLEGAL_ENC."
+        }
+      ],
+      "illegal_a_b": "A != 0 or B != 0 is ST_ILLEGAL_ENC"
+    },
+    {
+      "op": "0x5",
+      "family": "STACK",
+      "subops": [
+        {
+          "a": "0x0",
+          "tag": "DUP",
+          "stack": {
+            "pops": 1,
+            "pushes": 2
+          },
+          "rule": "x -> x x"
+        },
+        {
+          "a": "0x1",
+          "tag": "DROP",
+          "stack": {
+            "pops": 1,
+            "pushes": 0
+          },
+          "rule": "x ->"
+        },
+        {
+          "a": "0x2",
+          "tag": "SWAP",
+          "stack": {
+            "pops": 2,
+            "pushes": 2
+          },
+          "rule": "a b -> b a"
+        },
+        {
+          "a": "0x3",
+          "tag": "OVER",
+          "stack": {
+            "pops": 2,
+            "pushes": 3
+          },
+          "rule": "a b -> a b a"
+        }
+      ],
+      "illegal_a": "ST_ILLEGAL_ENC"
+    },
+    {
+      "op": "0x1",
+      "family": "ALU",
+      "subops": [
+        {
+          "a": "0x0",
+          "tag": "XOR",
+          "stack": {
+            "pops": 2,
+            "pushes": 1
+          }
+        },
+        {
+          "a": "0x1",
+          "tag": "AND",
+          "stack": {
+            "pops": 2,
+            "pushes": 1
+          }
+        },
+        {
+          "a": "0x2",
+          "tag": "OR",
+          "stack": {
+            "pops": 2,
+            "pushes": 1
+          }
+        },
+        {
+          "a": "0x3",
+          "tag": "NOT",
+          "stack": {
+            "pops": 1,
+            "pushes": 1
+          }
+        },
+        {
+          "a": "0x4",
+          "tag": "ADD",
+          "stack": {
+            "pops": 2,
+            "pushes": 1
+          },
+          "wrap": "mod_2^16"
+        },
+        {
+          "a": "0x5",
+          "tag": "SUB",
+          "stack": {
+            "pops": 2,
+            "pushes": 1
+          },
+          "wrap": "mod_2^16"
+        },
+        {
+          "a": "0x6",
+          "tag": "SHL",
+          "stack": {
+            "pops": 1,
+            "pushes": 1
+          },
+          "shift": "b&0xF"
+        },
+        {
+          "a": "0x7",
+          "tag": "SHR",
+          "stack": {
+            "pops": 1,
+            "pushes": 1
+          },
+          "shift": "b&0xF"
+        },
+        {
+          "a": "0x8",
+          "tag": "ROTL",
+          "stack": {
+            "pops": 1,
+            "pushes": 1
+          },
+          "shift": "b&0xF"
+        },
+        {
+          "a": "0x9",
+          "tag": "ROTR",
+          "stack": {
+            "pops": 1,
+            "pushes": 1
+          },
+          "shift": "b&0xF"
+        },
+        {
+          "a": "0xA",
+          "tag": "EQ",
+          "stack": {
+            "pops": 2,
+            "pushes": 1
+          },
+          "result": "1 if a==b else 0"
+        },
+        {
+          "a": "0xB",
+          "tag": "LT",
+          "stack": {
+            "pops": 2,
+            "pushes": 1
+          },
+          "result": "1 if a<b else 0 (unsigned)"
+        },
+        {
+          "a": "0xC",
+          "tag": "NEQ",
+          "stack": {
+            "pops": 2,
+            "pushes": 1
+          },
+          "result": "1 if a!=b else 0"
+        }
+      ],
+      "illegal_a": "ST_ILLEGAL_ENC"
+    },
+    {
+      "op": "0x3",
+      "family": "MEM",
+      "note": "Program memory ops. All protected-address accesses fault ST_MEM_PROT.",
+      "subops": [
+        {
+          "a": "0x0",
+          "tag": "LD",
+          "addr": "b",
+          "stack": {
+            "pops": 0,
+            "pushes": 1
+          },
+          "push": "mem[b]",
+          "protected_addr_fault": "ST_MEM_PROT"
+        },
+        {
+          "a": "0x1",
+          "tag": "ST",
+          "addr": "b",
+          "stack": {
+            "pops": 1,
+            "pushes": 0
+          },
+          "store": "mem[b]=x",
+          "protected_addr_fault": "ST_MEM_PROT"
+        },
+        {
+          "a": "0x2",
+          "tag": "LDI",
+          "addr": "tos[7:0]",
+          "stack": {
+            "pops": 1,
+            "pushes": 1
+          },
+          "push": "mem[addr8]",
+          "protected_addr_fault": "ST_MEM_PROT"
+        },
+        {
+          "a": "0x3",
+          "tag": "STI",
+          "addr": "tos[7:0]",
+          "stack": {
+            "pops": 2,
+            "pushes": 0
+          },
+          "store": "mem[addr8]=x",
+          "protected_addr_fault": "ST_MEM_PROT"
+        }
+      ],
+      "illegal_a": "ST_ILLEGAL_ENC"
+    },
+    {
+      "op": "0x4",
+      "family": "CTRL",
+      "note": "Forward-only branches. B[7]=1 is ST_ILLEGAL_ENC at the encoding level, not a runtime fault.",
+      "target_rule": "target=(pc_before+1)+signext8(b)",
+      "forward_only_rule": "B[7] MUST be 0. B[7]=1 is ST_ILLEGAL_ENC. This is an encoding constraint, not a mode.",
+      "removed": "CALL and RET do not exist in J16 v2. Encoding slots OP=0x4 A>=0x3 are permanently ST_ILLEGAL_ENC.",
+      "subops": [
+        {
+          "a": "0x0",
+          "tag": "JMP",
+          "stack": {
+            "pops": 0,
+            "pushes": 0
+          },
+          "pc": "target",
+          "constraint": "B[7]=0 required (encoding rule)"
+        },
+        {
+          "a": "0x1",
+          "tag": "JZ",
+          "stack": {
+            "pops": 1,
+            "pushes": 0
+          },
+          "pc": "if cond==0 then target else pc+1",
+          "constraint": "B[7]=0 required (encoding rule)"
+        },
+        {
+          "a": "0x2",
+          "tag": "JNZ",
+          "stack": {
+            "pops": 1,
+            "pushes": 0
+          },
+          "pc": "if cond!=0 then target else pc+1",
+          "constraint": "B[7]=0 required (encoding rule)"
+        }
+      ],
+      "illegal_a": "A >= 0x3 is ST_ILLEGAL_ENC"
+    },
+    {
+      "op": "0xB",
+      "family": "INVOKE",
+      "full_id": "(a<<8)|b",
+      "atomic": true,
+      "unknown_fault": "ST_UNKNOWN_INVOKE",
+      "invoke_stack_overflow_check": "If DSP - pops + pushes > 256, fault ST_DSTACK_OF before execution",
+      "abi": {
+        "arg_base": "0x00",
+        "res_base": "0x40",
+        "max_args": 64,
+        "max_rets": 64,
+        "status_addr": "0xFF",
+        "aux_addr": "0xFE",
+        "primitive_membus_range": "0x00..0x7F ONLY. Primitive access outside this range faults ST_MEM_PROT.",
+        "marshalling": [
+          "1. Pop pops args from data stack; arg0 is original TOS",
+          "2. mem[ARG_BASE+i] = arg_i for i=0..pops-1",
+          "3. Primitive runs on inv_valid handshake; may access mem[0x00..0x7F] via inv_mem_* bus only",
+          "4. On inv_done: mem[STATUS]=status, mem[AUX]=aux",
+          "5. Push mem[RES_BASE+j] for j=0..pushes-1"
+        ]
+      }
+    },
+    {
+      "op": "0xF",
+      "family": "SYS",
+      "subops": [
+        {
+          "a": "0x0",
+          "tag": "HALT",
+          "stack": {
+            "pops": 0,
+            "pushes": 0
+          },
+          "effects": "halted=1, faulted=0. Clean termination."
+        },
+        {
+          "a": "0x1",
+          "tag": "TRAP",
+          "stack": {
+            "pops": 0,
+            "pushes": 0
+          },
+          "fault": "ST_TRAP",
+          "aux": "b",
+          "effects": "halted=1, faulted=1. Diagnostic termination."
+        }
+      ],
+      "illegal_a": "ST_ILLEGAL_ENC"
+    }
+  ],
+  "status_codes": [
+    {
+      "name": "ST_OK",
+      "value": "0x0000"
+    },
+    {
+      "name": "ST_UNKNOWN_INVOKE",
+      "value": "0x0001",
+      "aux": "full_id"
+    },
+    {
+      "name": "ST_DSTACK_UF",
+      "value": "0x0002"
+    },
+    {
+      "name": "ST_DSTACK_OF",
+      "value": "0x0003"
+    },
+    {
+      "name": "ST_PC_OOB",
+      "value": "0x0004",
+      "aux": "pc_low16"
+    },
+    {
+      "name": "ST_ILLEGAL_ENC",
+      "value": "0x0005",
+      "aux": "ir_word"
+    },
+    {
+      "name": "ST_TRAP",
+      "value": "0x0006",
+      "aux": "trap_code"
+    },
+    {
+      "name": "ST_MEM_PROT",
+      "value": "0x0007",
+      "aux": "addr_or_id",
+      "note": "Replaces ST_J16T_VIOL. Covers program MEM to protected region AND invoke membus outside ARG/RES."
+    },
+    {
+      "name": "ST_INVOKE_TIMEOUT",
+      "value": "0x0008",
+      "aux": "full_id",
+      "note": "Primitive exceeded declared cycle budget."
+    }
+  ],
+  "certification": {
+    "tool": "j16_certifier.sv",
+    "certificate_format": "JSON",
+    "certificate_fields": [
+      "prog_len",
+      "max_icount",
+      "max_cycles",
+      "dsp_at_pc (per-instruction stack depth, proof of no underflow/overflow on any path)",
+      "prim_ids_used (list of INVOKE full_ids with their declared budgets)"
+    ],
+    "rules": [
+      "All instructions reachable from PC=0 must be legal (no ST_ILLEGAL_ENC encodings)",
+      "All branch targets must be within [0, prog_len)",
+      "All JMP/JZ/JNZ must have B[7]=0 (forward-only, encoding constraint)",
+      "All INVOKE full_ids must exist in primtab and be deterministic",
+      "Stack depth must be consistent and non-negative at every instruction and every branch target",
+      "Stack depth after INVOKE must account for pops and pushes without overflow",
+      "Every reachable execution path must reach HALT",
+      "LIT16 data words (PC+1 of every LIT16) must not be decoded as instructions"
+    ],
+    "capabilities": {
+      "version": "capabilities.v0",
+      "cap_id_to_name": {
+        "0": "pure",
+        "1": "io",
+        "2": "time",
+        "3": "random",
+        "4": "unsafe"
+      },
+      "notes": [
+        "cap_id is stored per primitive in primtab.hex (field cap_id bits[55:48]).",
+        "Symbols and banks declare caps as a set of capability names.",
+        "Certification enforces: symbol_caps \u2286 bank.caps; and deps' caps \u2286 symbol_caps; and primitive cap \u2208 bank.allow_prim_caps and \u2208 symbol_caps."
+      ]
+    }
+  },
+  "primitive_registry": {
+    "row_bits": 128,
+    "empty_row": "all_zero",
+    "source": "compile-time ROM (primtab.hex loaded at synthesis/simulation startup, not runtime-mutable)",
+    "fields": [
+      {
+        "name": "full_id",
+        "bits": [
+          127,
+          112
+        ]
+      },
+      {
+        "name": "model",
+        "bits": [
+          111,
+          108
+        ],
+        "values": {
+          "0": "const",
+          "1": "linear"
+        }
+      },
+      {
+        "name": "unit",
+        "bits": [
+          107,
+          104
+        ]
+      },
+      {
+        "name": "max_units",
+        "bits": [
+          103,
+          88
+        ]
+      },
+      {
+        "name": "base_cycles",
+        "bits": [
+          87,
+          72
+        ]
+      },
+      {
+        "name": "per_cycles",
+        "bits": [
+          71,
+          56
+        ]
+      },
+      {
+        "name": "cap_id",
+        "bits": [
+          55,
+          48
+        ]
+      },
+      {
+        "name": "pops",
+        "bits": [
+          47,
+          40
+        ]
+      },
+      {
+        "name": "pushes",
+        "bits": [
+          39,
+          32
+        ]
+      },
+      {
+        "name": "deterministic",
+        "bits": [
+          31,
+          31
+        ],
+        "must_be": 1
+      }
+    ],
+    "bounds": {
+      "model_0": "budget = base_cycles",
+      "model_1": "budget = base_cycles + per_cycles * max_units (saturate to 32-bit)"
+    }
+  },
+  "program_image_format": {
+    "format": "prog.hex",
+    "encoding": "readmemh",
+    "line": "4_hex_digits_uppercase",
+    "entry_pc": 0,
+    "requirement": "Program image MUST be HALT-terminated: ROM word[prog_len-1] must be SYS HALT (0xF000). In AUTO_LEN mode, prog_len is computed as (last HALT + 1) and any non-zero words after the terminator are rejected."
+  }
+}

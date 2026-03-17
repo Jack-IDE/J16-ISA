@@ -1,0 +1,7 @@
+# Commit/trace equivalence program (INVOKE fault path)
+# Goal: exercise INVOKE dispatch fault ST_UNKNOWN_INVOKE deterministically.
+
+# 0: INVOKE fid=0x0FFF (A=0xF, B=0xFF) -> not present in primtab.hex
+BFFF
+# 1: HALT (should not be reached)
+F000

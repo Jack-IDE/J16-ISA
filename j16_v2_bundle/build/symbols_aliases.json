@@ -1,0 +1,23 @@
+{
+  "format": "j16.symbol_aliases.v0",
+  "isa": "docs/isa_v2.json",
+  "symbols": {
+    "ADD16": {
+      "abi": {
+        "pops": 2,
+        "pushes": 1
+      },
+      "bank": 1,
+      "budget": {
+        "max_cycles": 2
+      },
+      "caps": [
+        "pure"
+      ],
+      "fid": 256,
+      "index": 0,
+      "src": "sym/corelib/add16.s",
+      "src_hash": "sha256:c1f5412f873b7f26213a6807b0e3d3c104681ea9d5bec44fe949d952b8e27df9"
+    }
+  }
+}

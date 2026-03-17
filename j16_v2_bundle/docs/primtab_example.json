@@ -1,0 +1,90 @@
+{
+  "format": "j16-primtab-json-v1",
+  "notes": "Matches current primtab.hex shipped in this bundle. Regenerates identically using tools/primtab_pack.py --sparse.",
+  "entries": [
+    {
+      "fid": 0,
+      "model": 0,
+      "unit": 0,
+      "max_units": 0,
+      "base_cycles": 8,
+      "per_cycles": 0,
+      "cap_id": 0,
+      "pops": 0,
+      "pushes": 1,
+      "deterministic": true
+    },
+    {
+      "fid": 1,
+      "model": 0,
+      "unit": 0,
+      "max_units": 0,
+      "base_cycles": 12,
+      "per_cycles": 0,
+      "cap_id": 0,
+      "pops": 2,
+      "pushes": 1,
+      "deterministic": true
+    },
+    {
+      "fid": 2,
+      "model": 0,
+      "unit": 0,
+      "max_units": 0,
+      "base_cycles": 10,
+      "per_cycles": 0,
+      "cap_id": 0,
+      "pops": 0,
+      "pushes": 2,
+      "deterministic": true
+    },
+    {
+      "fid": 3,
+      "model": 0,
+      "unit": 0,
+      "max_units": 0,
+      "base_cycles": 14,
+      "per_cycles": 0,
+      "cap_id": 0,
+      "pops": 1,
+      "pushes": 1,
+      "deterministic": true
+    },
+    {
+      "fid": 4,
+      "model": 0,
+      "unit": 0,
+      "max_units": 0,
+      "base_cycles": 14,
+      "per_cycles": 0,
+      "cap_id": 0,
+      "pops": 2,
+      "pushes": 0,
+      "deterministic": true
+    },
+    {
+      "fid": 5,
+      "model": 0,
+      "unit": 0,
+      "max_units": 0,
+      "base_cycles": 8,
+      "per_cycles": 0,
+      "cap_id": 0,
+      "pops": 0,
+      "pushes": 0,
+      "deterministic": true
+    },
+    {
+      "fid": 6,
+      "model": 0,
+      "unit": 0,
+      "max_units": 0,
+      "base_cycles": 8,
+      "per_cycles": 0,
+      "cap_id": 0,
+      "pops": 0,
+      "pushes": 2,
+      "deterministic": true
+    }
+  ]
+}
