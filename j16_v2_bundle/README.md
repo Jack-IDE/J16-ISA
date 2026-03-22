@@ -31,37 +31,6 @@ of the ISA encoding. You cannot synthesize an insecure J16 v2 core by misconfigu
 | ALU ops | 11 | 13 (added LT, NEQ) |
 | Stack proof | Simulation-based | **Static per-instruction depth certificate** |
 
----
-
-## File Layout
-
-```
-j16_v2_bundle/
-├── docs/
-│   ├── J16_ISA_v2.md          Normative human-readable spec
-│   └── isa_v2.json            Machine-readable canonical spec (source of truth)
-├── rtl/
-│   ├── j16_isa.svh            Auto-generated SV package (copy of root)
-│   └── j16_core.sv            Synthesizable RTL core
-├── tools/
-│   ├── gen_j16_isa_svh.py     Generate j16_isa.svh from isa_v2.json
-│   ├── check_isa_lockstep.py  Verify .svh matches json (CI gate)
-│   ├── j16asm.py              Manifest-driven assembler (.s → .hex)
-│   └── rom_packer.py          ROM word packer (emits prog.hex)
-├── asm/
-│   └── prog_equiv.s            Example assembly matching prog_equiv.hex
-├── .github/workflows/
-│   └── lockstep.yml           CI: fail if ISA drifts
-├── j16_isa.svh                Auto-generated SV package
-├── j16_ref_pkg.sv             Golden reference model (SV class)
-├── j16_certifier.sv           Static certifier (emits JSON certificate)
-├── prog.hex                   Example program (HALT)
-├── primtab.hex                Primitive registry table (128-bit rows)
-├── allow_prims.hex            Primitive allowlist (full_id words)
-└── Makefile
-```
-
----
 
 ## Simulate (Icarus)
 
