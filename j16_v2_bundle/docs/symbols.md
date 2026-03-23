@@ -34,6 +34,11 @@ Each symbol has:
 
 See `docs/symbols_cert.md` for the spec-locked certification workflow.
 
+### Primitive capability allowlist key
+
+The canonical bank field for primitive capability allowlisting is `allow_prim_caps`.
+Some external or authoring tools may accept `allow_effect_caps` as an alias, but the bundle format and `j16sym` use `allow_prim_caps`.
+
 ## Assembler usage
 
 Generate aliases:
@@ -84,3 +89,17 @@ This means the symbol dependency graph is a DAG by construction, which supports:
 - no recursion-by-indirection through `INVOKE`
 
 For experiments you may relax this with `j16sym cert --allow-non-descending`, but it is not v0-compliant.
+
+
+### CBM `INVOKE_THEN` lowering note
+
+`INVOKE_THEN` is a CBM authoring construct, not a native J16 instruction.
+At the strict/v0 lowering boundary it maps to:
+
+```
+INVK <rd>, <callee>
+BNZ  <rd>, <ok_target>
+J    <fail_target>
+```
+
+So any workflow that allows `INVOKE_THEN` inside a lowered symbol must also allow the resulting `CTRL` words in that lowered artifact, or treat the branch as part of an out-of-band lowering contract.

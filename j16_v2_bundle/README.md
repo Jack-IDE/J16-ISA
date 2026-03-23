@@ -1,40 +1,125 @@
-# J16 v2 — Non-Turing-Complete Secure Execution Substrate
+# J16 / CBM Integrated Checkpoint
 
-## What This Is
+This bundle is an integrated checkpoint of the **J16 v2** execution substrate together with:
 
-J16 v2 is a 16-bit stack-based CPU ISA designed from the ground up for **structural security**.
+- the **SystemVerilog reference model**
+- the **static certifier**
+- the **manifest-driven assembler and symbol tools**
+- the **synthesizable RTL core and testbenches**
+- a standalone **Python reference simulator**
+- the browser-based **CBM-SAE** authoring and certification environment
 
-The core design principle: **Turing completeness is the attack surface.** Rather than trying to
-contain it, J16 v2 eliminates it at the encoding level.
-
-Every J16 v2 program is statically certifiable to:
-- Terminate within a computable cycle bound
-- Never overflow or underflow its data stack
-- Never access protected memory regions
-- Never execute undefined behavior
-
-These are not runtime guarantees enforced by a mode flag. They are **structural properties**
-of the ISA encoding. You cannot synthesize an insecure J16 v2 core by misconfiguring a parameter.
+It should be presented as a **serious checkpoint release** rather than a final research closure. The main layers of the system are present together and can be run directly from this bundle.
 
 ---
 
-## Key Differences From v1
+## What is in this bundle
 
-| Property | v1 | v2 |
-|---|---|---|
-| CALL/RET | Present (blocked by PROFILE_T) | **Removed from encoding entirely** |
-| Return stack | Present | **Gone** |
-| Backward branches | Blocked by PROFILE_T | **ST_ILLEGAL_ENC at encoding level** |
-| Profile mode switch | `PROFILE_T` parameter | **No switch. Always secure.** |
-| Violation fault | ST_J16T_VIOL (implies a mode) | ST_MEM_PROT (describes what happened) |
-| LIT range | 12-bit | 12-bit (LIT) + **16-bit (LIT16, new)** |
-| ALU ops | 11 | 13 (added LT, NEQ) |
-| Stack proof | Simulation-based | **Static per-instruction depth certificate** |
+### Core J16 v2
 
+- `docs/J16_ISA_v2.md` — human-readable ISA specification
+- `docs/isa_v2.json` — canonical machine-readable ISA manifest
+- `j16_ref_pkg.sv` — SystemVerilog reference model
+- `j16_certifier.sv` — static certifier
+- `rtl/` — synthesizable RTL core and support modules
+- `tb/` — equivalence / gate testbenches
 
-## Simulate (Icarus)
+### Tools
 
-### Basic certification + run
+- `tools/j16asm.py` — manifest-driven assembler
+- `tools/j16sym.py` — symbol tooling and certification support
+- `tools/j16sim.py` — standalone Python reference simulator
+- `tools/check_isa_lockstep.py` — manifest / generated-header lockstep check
+- `tools/gen_j16_isa_svh.py` — regenerate `j16_isa.svh` from `docs/isa_v2.json`
+- `tools/rom_packer.py` — ROM word packer
+- `tools/primtab_pack.py` — primitive-table packer
+
+### CBM-SAE
+
+- `tools/cbm_sae/index.html` — offline CBM authoring, certification, simulation, and J16-lowering workbench
+- `tools/cbm_sae/README.md` — short CBM-SAE usage overview
+
+### Example artifacts
+
+- `asm/` — example assembly sources
+- `build/` — example assembled outputs
+- `prog.hex`, `prog_equiv.hex`, `prog_equiv_timing.hex`, `prog_equiv_invoke_fault.hex` — example program images
+- `primtab.hex`, `allow_prims.hex` — primitive registry / allowlist examples
+- `symbols/symbols_v0.json` — example or authoring registry for symbol metadata
+- `sym/corelib/` — example symbol source
+
+---
+
+## What this checkpoint demonstrates
+
+This checkpoint brings the major layers together in one place:
+
+1. **Spec-locked ISA definition** via `docs/isa_v2.json`
+2. **Generated ISA header discipline** via `j16_isa.svh` and lockstep checks
+3. **Reference execution model** via `j16_ref_pkg.sv`
+4. **Static certification** via `j16_certifier.sv`
+5. **Synthesizable RTL** via `rtl/`
+6. **Assembly and symbol tooling** via `tools/j16asm.py` and `tools/j16sym.py`
+7. **Standalone runnable reference simulator** via `tools/j16sim.py`
+8. **CBM authoring and lowering integration** via `tools/cbm_sae/index.html`
+
+The intended framing is:
+
+> **J16 / CBM Integrated Checkpoint**
+>
+> A reproducible milestone containing the J16 v2 spec/toolchain/reference stack, a standalone Python simulator, and the CBM-SAE authoring and certification frontend.
+
+---
+
+## Quick start
+
+### 1. Run the Python simulator
+
+Basic run:
+
+```bash
+python3 tools/j16sim.py --hex prog.hex
+```
+
+Trace execution:
+
+```bash
+python3 tools/j16sim.py --hex prog_equiv.hex --trace
+```
+
+Run with primitive table loaded:
+
+```bash
+python3 tools/j16sim.py --hex prog_equiv.hex --primtab primtab.hex --trace
+```
+
+Dump memory after execution:
+
+```bash
+python3 tools/j16sim.py --hex prog.hex --dump-mem
+```
+
+### 2. Assemble example code
+
+```bash
+make asm ASM_SRC=asm/prog_equiv.s ASM_OUT=build/prog_equiv.hex
+```
+
+The assembler is manifest-driven and reads `docs/isa_v2.json`, so the encoding layer stays tied to the canonical spec.
+
+### 3. Check ISA manifest lockstep
+
+```bash
+make gen-isa
+make check-isa
+```
+
+This regenerates `j16_isa.svh` from `docs/isa_v2.json` and verifies the generated header has not drifted.
+
+### 4. Run certification / simulation with Icarus
+
+Basic certification flow:
+
 ```bash
 iverilog -g2012 -o sim \
   j16_ref_pkg.sv j16_certifier.sv \
@@ -42,7 +127,8 @@ iverilog -g2012 -o sim \
 vvp sim
 ```
 
-### RTL equivalence check
+RTL equivalence flow:
+
 ```bash
 iverilog -g2012 -o sim \
   rtl/j16_core.sv rtl/j16_imem.sv rtl/j16_prim_registry.sv \
@@ -52,104 +138,99 @@ iverilog -g2012 -o sim \
 vvp sim
 ```
 
----
+### 5. Open CBM-SAE
 
-## Assemble
+Open this file in a browser:
 
-```bash
-make asm ASM_SRC=asm/prog_equiv.s ASM_OUT=build/prog_equiv.hex
+```text
+tools/cbm_sae/index.html
 ```
 
-The assembler reads `docs/isa_v2.json` for encodings, so it stays spec-locked.
+CBM-SAE is the browser-based authoring and semantic-analysis frontend. It supports graph editing, JSON/schema inspection, certification, simulation, and an embedded J16-lowering workbench.
 
 ---
 
-## Memory Map
+## The role of `j16sim.py`
 
-| Region    | Range       | Program Access |
-|-----------|-------------|----------------|
-| ARG       | 0x00..0x3F  | INVOKE only    |
-| RES       | 0x40..0x7F  | INVOKE only    |
-| USER      | 0x80..0xFD  | Read/Write     |
-| AUX       | 0xFE        | Read via INVOKE only |
-| STATUS    | 0xFF        | Read via INVOKE only |
+`tools/j16sim.py` is not just a convenience script. It belongs in the bundle as the **Python reference simulator**.
 
----
+Use it for:
 
-## Primitive Registry (`primtab.hex`)
+- quick CLI inspection of `.hex` programs
+- readable execution traces
+- easier reproduction without a Verilog simulator
+- cross-checking behaviour against the SystemVerilog reference model
 
-Each entry is a 128-bit row (32 hex digits per line):
+For repo organization, the clean public placement is:
 
-```
-[127:112] full_id        = (bank<<8)|idx
-[111:108] model          = 0 (const), 1 (linear)
-[107:104] unit           = reserved
-[103:88]  max_units      = max problem size
-[87:72]   base_cycles    = base budget
-[71:56]   per_cycles     = per-unit budget
-[55:48]   cap_id         = capability class (gated by ALLOW_CAPS)
-[47:40]   pops           = args popped from data stack
-[39:32]   pushes         = results pushed to data stack
-[31]      deterministic  = MUST BE 1 (J16 v2 rejects non-deterministic primitives)
-[30:0]    reserved
-```
-
-All registered primitives **must** be deterministic and have a declared cycle budget.
-Non-deterministic primitives are rejected by the certifier and the runtime.
-
----
-
-## Lock-Step ISA Manifest
-
-`docs/isa_v2.json` is the canonical spec. `j16_isa.svh` is auto-generated from it.
-They must never drift.
-
-```bash
-make gen-isa    # Regenerate j16_isa.svh from isa_v2.json
-make check-isa  # Verify they match (runs in CI on every push)
+```text
+tools/j16sim.py
 ```
 
 ---
 
-## Why Non-Turing-Complete Is Enough
+## Symbol and certification notes
 
-The functions you need for specialized hardware processes — data transformation,
-state machine execution, bounded cryptographic kernels, protocol parsing, inference
-pre/post-processing — are all **primitive recursive**. None of them require unbounded loops.
+The shipped `symbols/symbols_v0.json` should be understood as an **example / authoring registry**, not automatically as fully certified production metadata.
 
-What you lose is the ability to write an interpreter or implement arbitrary algorithms.
-That is precisely what you want to prevent.
+That file is useful as a starting point for authoring and policy structure. Certified symbol metadata should come from the symbol certification flow and include the expected certification-derived fields such as budgets and hashes.
 
-For capabilities beyond the core ISA, use the INVOKE system: registered, capability-gated,
-cycle-bounded hardware primitives. They extend what programs can do without giving programs
-Turing-complete escape.
+See:
 
-
-## Capability-typed banks (v0)
-
-Banks and symbols declare capability sets. Primitive rows in `primtab.hex` carry a `cap_id` which is mapped to a capability name via `docs/isa_v2.json`.
-
-`tools/j16sym.py cert` enforces:
-
-- `symbol.caps ⊆ bank.caps`
-- symbol dependencies are monotonic: callers may only depend on symbols/primitives whose caps are a subset of the caller's caps
-- bank policy: primitive caps must be allowed by `bank.allow_prim_caps`
-
-See `docs/symbols_cert.md`.
-
+- `docs/symbols.md`
+- `docs/symbols_cert.md`
+- `docs/bank_policy.md`
 
 ---
 
-## Soundness gates
+## Memory map
 
-The repo includes explicit pass/fail gates that turn “sound to concept” into something you can run:
+| Region | Range | Program access |
+|---|---|---|
+| ARG | `0x00..0x3F` | INVOKE only |
+| RES | `0x40..0x7F` | INVOKE only |
+| USER | `0x80..0xFD` | Read / write |
+| AUX | `0xFE` | Read via INVOKE only |
+| STATUS | `0xFF` | Read via INVOKE only |
 
-- **Gate A (end-to-end conservativeness)**: `make sim-gate-a GATE_HEXFILE=prog_equiv.hex`
-  - Runs RTL to HALT and asserts actual cycles/icount stay within the static certificate bounds.
-- **Gate B (ABI contract enforcement)**: `tools/j16sym.py cert` performs a CFG stack analysis and
-  rejects any symbol whose *actual* stack effect differs from its declared `(pops, pushes)` ABI.
-  It also rejects CTRL targets that escape the symbol object.
-- **Assembler hardening**: `tools/j16asm.py --require-certified-symbols` prevents assembling programs
-  that CALL symbols lacking ABI/budget metadata (i.e., “assembled but never certified”).
+---
 
-See `docs/soundness_gates.md` for details.
+## Primitive registry
+
+`primtab.hex` stores primitive registry rows. Registered primitives are expected to be deterministic and to carry a declared cycle budget.
+
+Relevant documentation:
+
+- `docs/primtab_format.md`
+- `docs/primtab_example.json`
+
+---
+
+## Current checkpoint status
+
+### What is solid in this bundle
+
+- canonical ISA manifest present
+- generated-header lockstep tooling present
+- SystemVerilog reference model present
+- static certifier present
+- RTL core and testbenches present
+- assembler and symbol tooling present
+- Python simulator present
+- CBM-SAE integrated into the same checkpoint
+
+### What this bundle should not claim yet
+
+This bundle should be described as a **complete integrated checkpoint**, not as the final closure of the entire broader research program.
+
+That framing is stronger and more accurate than overselling it as “final.”
+
+## Final positioning
+
+The clean public description is:
+
+> **J16 / CBM Integrated Checkpoint**
+>
+> A bundled milestone containing the J16 v2 ISA/spec/toolchain/reference stack, a standalone Python reference simulator, and the CBM-SAE authoring / certification frontend.
+
+That is strong, accurate, and matches what is actually present in this ZIP.

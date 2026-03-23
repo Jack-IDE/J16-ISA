@@ -65,6 +65,12 @@ If you want to generate harnesses + hashes without running Icarus:
 python3 tools/j16sym.py cert --in symbols/symbols_v0.json --out build/symbols_v0_certified.json --no-run
 ```
 
+
+### Example registry note
+
+The shipped `symbols/symbols_v0.json` is an authoring/example registry and sets `require_certified_symbols: false`.
+After you run `j16sym cert`, point strict consumers at the certified output (for example `build/symbols_v0_certified.json`) or copy the generated `hash.*` and `budget.*` fields back into the registry before enabling strict certified-symbol enforcement.
+
 ## Registry fields written back
 
 Each symbol receives:
@@ -138,3 +144,10 @@ Certification rules:
 3) For every primitive INVOKE dependency, the primitive's capability (from `primtab.cap_id` mapped via `docs/isa_v2.json` certification.capabilities) must be in `bank.allow_prim_caps` and in `caller_symbol.caps`
 
 This turns the symbol graph into a *policy-checked DAG* and keeps privilege monotonic across dependencies.
+
+
+## CBM `INVOKE_THEN` lowering contract
+
+When a CBM-fronted workflow lowers `INVOKE_THEN`, the branch is expressed in J16 as `INVK`, then `BNZ`, then `J` for the fail edge.
+That lowering contract lives above the ISA itself: `INVOKE_THEN` is not a native J16 opcode.
+Strict v0 symbol certification therefore treats the resulting branch words according to the same `CTRL` policy as any other lowered artifact.

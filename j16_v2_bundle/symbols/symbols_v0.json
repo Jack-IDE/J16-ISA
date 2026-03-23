@@ -30,5 +30,6 @@
     }
   ],
   "format": "j16.symbols.v0",
-  "isa": "docs/isa_v2.json"
+  "isa": "docs/isa_v2.json",
+  "require_certified_symbols": false
 }
