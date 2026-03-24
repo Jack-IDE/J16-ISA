@@ -135,7 +135,7 @@ Program RAM access. All accesses to protected regions fault `ST_MEM_PROT`.
 | 2 | LDI | `addr → RAM[addr[7:0]]`    (addr must be in user region) |
 | 3 | STI | `x addr →` `RAM[addr[7:0]]=x` (addr must be in user region) |
 
-Note: `LD[B]` and `ST[B]` with B in `0x00..0x7F` or `0xFE..0xFF` are **encoding-level**
+Note: `LD[B]` and `ST[B]` with B in `0x00..0x3F` or `0xFE..0xFF` are **encoding-level**
 violations caught by the certifier. At runtime, they fault `ST_MEM_PROT`.
 
 ### OP = 0x4 — CTRL
@@ -168,11 +168,11 @@ or non-deterministic, or capability-gated: `ST_UNKNOWN_INVOKE`.
 
 **ABI (frozen):**
 1. Pop `pops` args from data stack; arg0 is original TOS
-2. Store to `RAM[0x00..0x3F]` (ARG region)
+2. Store to `RAM[0x00..0x1F]` (ARG region)
 3. Assert `inv_valid`; stall core while primitive runs
-4. Primitive may access `RAM[0x00..0x7F]` via `inv_mem_*` bus **only**. Accessing
+4. Primitive may access `RAM[0x00..0x3F]` via `inv_mem_*` bus **only**. Accessing
    outside this range produces `ST_MEM_PROT` immediately.
-5. On `inv_done`: write STATUS/AUX, push `pushes` results from `RAM[0x40..0x7F]`
+5. On `inv_done`: write STATUS/AUX, push `pushes` results from `RAM[0x20..0x3F]`
 
 Pre-flight check: if `DSP - pops + pushes > 256`, fault `ST_DSTACK_OF` before execution.
 
@@ -189,13 +189,13 @@ Pre-flight check: if `DSP - pops + pushes > 256`, fault `ST_DSTACK_OF` before ex
 
 | Range       | Name    | Program Access | Notes |
 |-------------|---------|----------------|-------|
-| `0x00..0x3F`| ARG     | None (fault)   | INVOKE argument marshalling |
-| `0x40..0x7F`| RES     | None (fault)   | INVOKE result marshalling |
-| `0x80..0xFD`| USER    | Read/Write     | 126 words of program RAM |
+| `0x00..0x1F`| ARG     | None (fault)   | INVOKE argument marshalling |
+| `0x20..0x3F`| RES     | None (fault)   | INVOKE result marshalling |
+| `0x40..0xFD`| USER    | Read/Write     | 190 words of program RAM |
 | `0xFE`      | AUX     | None (fault)   | Fault auxiliary; read via SYS_STATUS_AUX INVOKE only |
 | `0xFF`      | STATUS  | None (fault)   | Fault status; same |
 
-Programs have **126 words** of writable RAM. This is intentionally constrained.
+Programs have **190 words** of writable RAM. This is intentionally constrained, but less punishingly small than the original 126-word split.
 For larger working sets, use INVOKE primitives with dedicated hardware buffers.
 
 ---

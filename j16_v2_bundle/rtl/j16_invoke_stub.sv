@@ -2,7 +2,7 @@
 // Minimal INVOKE simulation harness with one deterministic "known-good" primitive.
 //
 // Why this exists:
-// - The core marshals args to ARG[] (0x00..0x3F) and expects results in RES[] (0x40..0x7F).
+// - The core marshals args to ARG[] (0x00..0x1F) and expects results in RES[] (0x20..0x3F).
 // - In the original stub, primitives did nothing, leaving RES[] = 0. That exercises the path
 //   but does not validate any observable effect.
 //
@@ -18,7 +18,7 @@
 //   - status=ST_OK, aux=0
 //   - No primitive mem accesses
 //
-// NOTE: Primitive mem-bus is restricted by the core to 0x00..0x7F.
+// NOTE: Primitive mem-bus is restricted by the core to 0x00..0x3F.
 
 module j16_invoke_stub(
   input  logic clk,
@@ -85,7 +85,7 @@ module j16_invoke_stub(
       ST_WR0: begin
         inv_mem_valid = 1'b1;
         inv_mem_we    = 1'b1;
-        inv_mem_addr  = 8'h40; // RES_BASE + 0
+        inv_mem_addr  = 8'h20; // RES_BASE + 0
         inv_mem_wdata = res;
       end
 
@@ -94,12 +94,12 @@ module j16_invoke_stub(
         if (d2_cnt == 5'd2) begin
           inv_mem_valid = 1'b1;
           inv_mem_we    = 1'b1;
-          inv_mem_addr  = 8'h40; // RES_BASE + 0
+          inv_mem_addr  = 8'h20; // RES_BASE + 0
           inv_mem_wdata = 16'hCAFE;
         end else if (d2_cnt == 5'd6) begin
           inv_mem_valid = 1'b1;
           inv_mem_we    = 1'b1;
-          inv_mem_addr  = 8'h41; // RES_BASE + 1
+          inv_mem_addr  = 8'h21; // RES_BASE + 1
           inv_mem_wdata = 16'hBABE;
         end
       end

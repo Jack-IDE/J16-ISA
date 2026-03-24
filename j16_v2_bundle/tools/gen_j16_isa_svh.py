@@ -91,8 +91,8 @@ MEMORY_MAP = """\
 {consts}
 
   // ABI dimensions
-  localparam int unsigned ABI_MAX_ARGS = 64;
-  localparam int unsigned ABI_MAX_RETS = 64;
+  localparam int unsigned ABI_MAX_ARGS = {abi_max_args};
+  localparam int unsigned ABI_MAX_RETS = {abi_max_rets};
 
 """
 
@@ -208,6 +208,15 @@ def main():
         val = int(v, 16)
         mm_lines.append(f"  localparam logic [7:0]  {k:<20} = 8'h{val:02X};")
 
+    abi_max_args = 64
+    abi_max_rets = 64
+    for insn in spec.get("instructions", []):
+        if insn.get("op") == "0xB" and isinstance(insn.get("abi"), dict):
+            abi = insn["abi"]
+            abi_max_args = int(abi.get("max_args", abi_max_args))
+            abi_max_rets = int(abi.get("max_rets", abi_max_rets))
+            break
+
     # Status codes
     sc_lines = []
     for sc in spec["status_codes"]:
@@ -219,7 +228,7 @@ def main():
     output = (
         HEADER.format(json_path=args.json, name=name, version=version,
                       sha256=sha, date=today, alu_valid_mask=alu_valid_mask) +
-        MEMORY_MAP.format(consts="\n".join(mm_lines)) +
+        MEMORY_MAP.format(consts="\n".join(mm_lines), abi_max_args=abi_max_args, abi_max_rets=abi_max_rets) +
         STATUS_CODES.format(codes="\n".join(sc_lines)) +
         HELPERS +
         PRIM_SCHEMA

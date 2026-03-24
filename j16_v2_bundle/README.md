@@ -1,79 +1,131 @@
-# J16 / CBM Integrated Checkpoint
+# J16 v2 — 32/32 ABI Checkpoint
 
-This bundle is an integrated checkpoint of the **J16 v2** execution substrate together with:
+This repository is a public checkpoint of the **J16 v2** execution substrate and its surrounding toolchain.
 
-- the **SystemVerilog reference model**
-- the **static certifier**
-- the **manifest-driven assembler and symbol tools**
-- the **synthesizable RTL core and testbenches**
-- a standalone **Python reference simulator**
-- the browser-based **CBM-SAE** authoring and certification environment
+It includes:
+- the canonical ISA manifest
+- generated ISA headers
+- a SystemVerilog reference model
+- a static certifier
+- a synthesizable RTL core and testbenches
+- a manifest-driven assembler and symbol tooling
+- a standalone Python reference simulator and Python certifier
+- the offline browser-based **CBM-SAE** authoring and certification workbench
 
-It should be presented as a **serious checkpoint release** rather than a final research closure. The main layers of the system are present together and can be run directly from this bundle.
+This should be presented as a **serious integrated checkpoint**, not as a final closed research endpoint. The core spec, ABI, and verification stack are present together and can be exercised directly from this repo.
 
 ---
 
-## What is in this bundle
+## Checkpoint status
 
-### Core J16 v2
+### Stable in this checkpoint
+
+- **J16 v2 32/32 ABI layout**
+- canonical ISA manifest in `docs/isa_v2.json`
+- generated-header lockstep discipline via `j16_isa.svh` and `rtl/j16_isa.svh`
+- SystemVerilog reference execution model
+- static certification flow
+- synthesizable RTL core and equivalence-oriented testbenches
+- manifest-driven assembler and symbol tooling
+- standalone Python simulator and Python certifier
+- integrated CBM-SAE workbench with J16 lowering support
+
+### Still evolving
+
+- higher-level symbol ecosystem and larger primitive library growth
+- CBM-SAE authoring ergonomics and documentation polish
+- broader example programs and packaged demonstrations
+- future platform profiles above the current strict checkpoint
+
+---
+
+## ABI and memory map
+
+This checkpoint uses the **32 ARG / 32 RES** layout.
+
+| Region | Range | Notes |
+|---|---|---|
+| ARG | `0x00..0x1F` | INVOKE argument window |
+| RES | `0x20..0x3F` | INVOKE result window |
+| USER | `0x40..0xFD` | general read/write program memory |
+| AUX | `0xFE` | reserved / INVOKE-side access |
+| STATUS | `0xFF` | reserved / INVOKE-side access |
+
+That means ordinary program-visible mutable space begins at **`0x40`**.
+
+For the current J16-L0 profile, `INVOKE_THEN` success codes are expected to be **non-zero**.
+
+---
+
+## Repository layout
+
+### Core spec and verification
 
 - `docs/J16_ISA_v2.md` — human-readable ISA specification
 - `docs/isa_v2.json` — canonical machine-readable ISA manifest
+- `j16_isa.svh` — generated ISA header
+- `rtl/j16_isa.svh` — generated RTL-side ISA header
 - `j16_ref_pkg.sv` — SystemVerilog reference model
-- `j16_certifier.sv` — static certifier
+- `j16_certifier.sv` — SystemVerilog static certifier
 - `rtl/` — synthesizable RTL core and support modules
-- `tb/` — equivalence / gate testbenches
+- `tb/` — equivalence and gate testbenches
 
 ### Tools
 
 - `tools/j16asm.py` — manifest-driven assembler
 - `tools/j16sym.py` — symbol tooling and certification support
+- `tools/j16cert.py` — Python certifier mirroring the SV certifier
 - `tools/j16sim.py` — standalone Python reference simulator
-- `tools/check_isa_lockstep.py` — manifest / generated-header lockstep check
-- `tools/gen_j16_isa_svh.py` — regenerate `j16_isa.svh` from `docs/isa_v2.json`
+- `tools/check_isa_lockstep.py` — verifies JSON ↔ generated-header lockstep
+- `tools/gen_j16_isa_svh.py` — regenerates ISA headers from the manifest
 - `tools/rom_packer.py` — ROM word packer
 - `tools/primtab_pack.py` — primitive-table packer
 
 ### CBM-SAE
 
 - `tools/cbm_sae/index.html` — offline CBM authoring, certification, simulation, and J16-lowering workbench
-- `tools/cbm_sae/README.md` — short CBM-SAE usage overview
+- `tools/cbm_sae/README.md` — short CBM-SAE overview
 
-### Example artifacts
+### Example sources and artifacts
 
 - `asm/` — example assembly sources
-- `build/` — example assembled outputs
+- `sym/corelib/` — example symbol source
+- `symbols/symbols_v0.json` — example / authoring symbol registry
+- `build/` — generated example outputs and certification artifacts
 - `prog.hex`, `prog_equiv.hex`, `prog_equiv_timing.hex`, `prog_equiv_invoke_fault.hex` — example program images
 - `primtab.hex`, `allow_prims.hex` — primitive registry / allowlist examples
-- `symbols/symbols_v0.json` — example or authoring registry for symbol metadata
-- `sym/corelib/` — example symbol source
 
 ---
 
-## What this checkpoint demonstrates
+## Requirements
 
-This checkpoint brings the major layers together in one place:
+Minimum useful setup:
+- Python 3
 
-1. **Spec-locked ISA definition** via `docs/isa_v2.json`
-2. **Generated ISA header discipline** via `j16_isa.svh` and lockstep checks
-3. **Reference execution model** via `j16_ref_pkg.sv`
-4. **Static certification** via `j16_certifier.sv`
-5. **Synthesizable RTL** via `rtl/`
-6. **Assembly and symbol tooling** via `tools/j16asm.py` and `tools/j16sym.py`
-7. **Standalone runnable reference simulator** via `tools/j16sim.py`
-8. **CBM authoring and lowering integration** via `tools/cbm_sae/index.html`
+Optional but recommended for the full flow:
+- `make`
+- `iverilog` and `vvp` for SystemVerilog certification and RTL testbenches
 
-The intended framing is:
-
-> **J16 / CBM Integrated Checkpoint**
->
-> A reproducible milestone containing the J16 v2 spec/toolchain/reference stack, a standalone Python simulator, and the CBM-SAE authoring and certification frontend.
+CBM-SAE runs fully offline in a browser.
 
 ---
 
 ## Quick start
 
-### 1. Run the Python simulator
+### 1. Verify the ISA manifest/header lockstep
+
+```bash
+make check-isa
+```
+
+To regenerate the headers first:
+
+```bash
+make gen-isa
+make check-isa
+```
+
+### 2. Run the Python simulator
 
 Basic run:
 
@@ -84,13 +136,7 @@ python3 tools/j16sim.py --hex prog.hex
 Trace execution:
 
 ```bash
-python3 tools/j16sim.py --hex prog_equiv.hex --trace
-```
-
-Run with primitive table loaded:
-
-```bash
-python3 tools/j16sim.py --hex prog_equiv.hex --primtab primtab.hex --trace
+python3 tools/j16sim.py --hex prog.hex --trace
 ```
 
 Dump memory after execution:
@@ -99,46 +145,55 @@ Dump memory after execution:
 python3 tools/j16sim.py --hex prog.hex --dump-mem
 ```
 
-### 2. Assemble example code
+### 3. Assemble example code
 
 ```bash
 make asm ASM_SRC=asm/prog_equiv.s ASM_OUT=build/prog_equiv.hex
 ```
 
-The assembler is manifest-driven and reads `docs/isa_v2.json`, so the encoding layer stays tied to the canonical spec.
+This uses the canonical manifest in `docs/isa_v2.json`, so encoding remains tied to the frozen spec.
 
-### 3. Check ISA manifest lockstep
+### 4. Generate symbol aliases and run symbol-aware flows
 
-```bash
-make gen-isa
-make check-isa
-```
-
-This regenerates `j16_isa.svh` from `docs/isa_v2.json` and verifies the generated header has not drifted.
-
-### 4. Run certification / simulation with Icarus
-
-Basic certification flow:
+Generate aliases:
 
 ```bash
-iverilog -g2012 -o sim \
-  j16_ref_pkg.sv j16_certifier.sv \
-  tb_cert.sv
-vvp sim
+make sym-aliases
 ```
 
-RTL equivalence flow:
+Run symbol certification:
 
 ```bash
-iverilog -g2012 -o sim \
-  rtl/j16_core.sv rtl/j16_imem.sv rtl/j16_prim_registry.sv \
-  rtl/j16_invoke_stub.sv rtl/j16_soc_min.sv \
-  j16_ref_pkg.sv j16_certifier.sv \
-  tb/tb_j16_rtl_equiv.sv
-vvp sim
+make sym-cert
 ```
 
-### 5. Open CBM-SAE
+Assemble the symbol-aware example using generated aliases:
+
+```bash
+make asm-sym
+```
+
+### 5. Run SystemVerilog certification / equivalence flows
+
+Static certifier testbench:
+
+```bash
+make sim-cert
+```
+
+RTL equivalence runs:
+
+```bash
+make sim-rtl-equiv-all
+```
+
+Gate A conservativeness check:
+
+```bash
+make sim-gate-a
+```
+
+### 6. Open CBM-SAE
 
 Open this file in a browser:
 
@@ -146,52 +201,49 @@ Open this file in a browser:
 tools/cbm_sae/index.html
 ```
 
-CBM-SAE is the browser-based authoring and semantic-analysis frontend. It supports graph editing, JSON/schema inspection, certification, simulation, and an embedded J16-lowering workbench.
+CBM-SAE is the offline graph editor, semantic checker, simulator, and J16-lowering workbench included with this checkpoint.
 
 ---
 
-## The role of `j16sim.py`
+## Important notes
 
-`tools/j16sim.py` is not just a convenience script. It belongs in the bundle as the **Python reference simulator**.
+### Symbol-aware assembly
 
-Use it for:
+`asm/prog_symbols_demo.s` is **not** a plain-assembler-only example.
 
-- quick CLI inspection of `.hex` programs
-- readable execution traces
-- easier reproduction without a Verilog simulator
-- cross-checking behaviour against the SystemVerilog reference model
+It references symbol aliases such as `CALL ADD16`, so it should be assembled through the symbol-aware flow after generating aliases, not by running bare `j16asm.py` alone with no symbol metadata.
 
-For repo organization, the clean public placement is:
+Use:
 
-```text
-tools/j16sim.py
+```bash
+make sym-aliases
+make asm-sym
 ```
 
----
+or invoke `j16asm.py` with `--symbols build/symbols_aliases.json`.
 
-## Symbol and certification notes
+### Symbol registry status
 
-The shipped `symbols/symbols_v0.json` should be understood as an **example / authoring registry**, not automatically as fully certified production metadata.
+`symbols/symbols_v0.json` should be treated as an **authoring/example registry**.
 
-That file is useful as a starting point for authoring and policy structure. Certified symbol metadata should come from the symbol certification flow and include the expected certification-derived fields such as budgets and hashes.
+Certified symbol metadata should come from the certification flow, for example:
+
+```text
+build/symbols_v0_certified.json
+```
 
 See:
-
 - `docs/symbols.md`
 - `docs/symbols_cert.md`
 - `docs/bank_policy.md`
 
----
+### Python certifier fallback
 
-## Memory map
+`tools/j16sym.py cert` supports two backends:
+- Icarus Verilog using the SystemVerilog certifier
+- the bundled Python certifier in `tools/j16cert.py`
 
-| Region | Range | Program access |
-|---|---|---|
-| ARG | `0x00..0x3F` | INVOKE only |
-| RES | `0x40..0x7F` | INVOKE only |
-| USER | `0x80..0xFD` | Read / write |
-| AUX | `0xFE` | Read via INVOKE only |
-| STATUS | `0xFF` | Read via INVOKE only |
+If `iverilog` is unavailable and `tools/j16cert.py` is present, the symbol certification flow can fall back to the Python certifier.
 
 ---
 
@@ -200,37 +252,30 @@ See:
 `primtab.hex` stores primitive registry rows. Registered primitives are expected to be deterministic and to carry a declared cycle budget.
 
 Relevant documentation:
-
 - `docs/primtab_format.md`
 - `docs/primtab_example.json`
 
 ---
 
-## Current checkpoint status
+## What this checkpoint demonstrates
 
-### What is solid in this bundle
+This repo brings the major layers together in one place:
 
-- canonical ISA manifest present
-- generated-header lockstep tooling present
-- SystemVerilog reference model present
-- static certifier present
-- RTL core and testbenches present
-- assembler and symbol tooling present
-- Python simulator present
-- CBM-SAE integrated into the same checkpoint
+1. a spec-locked ISA definition
+2. generated-header lockstep discipline
+3. a reference execution model
+4. static certification
+5. synthesizable RTL
+6. assembly and symbol tooling
+7. a standalone Python simulator and Python certifier
+8. an offline CBM authoring and lowering environment
 
-### What this bundle should not claim yet
+That combination is the point of the release: it is a reproducible **J16 v2 integrated checkpoint** with the core spec, runtime model, verification, and authoring stack aligned around the current ABI.
 
-This bundle should be described as a **complete integrated checkpoint**, not as the final closure of the entire broader research program.
+---
 
-That framing is stronger and more accurate than overselling it as “final.”
+## Recommended public framing
 
-## Final positioning
-
-The clean public description is:
-
-> **J16 / CBM Integrated Checkpoint**
+> **J16 v2 — 32/32 ABI Checkpoint**
 >
-> A bundled milestone containing the J16 v2 ISA/spec/toolchain/reference stack, a standalone Python reference simulator, and the CBM-SAE authoring / certification frontend.
-
-That is strong, accurate, and matches what is actually present in this ZIP.
+> A bundled milestone containing the J16 v2 ISA/spec/toolchain/reference stack, the synthesizable RTL and certifier flows, standalone Python reference tooling, and the offline CBM-SAE authoring/certification frontend.

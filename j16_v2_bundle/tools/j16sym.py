@@ -27,6 +27,31 @@ import sys
 from typing import Any, Dict, List, Tuple, Optional
 
 
+# ---------------------------------------------------------------------------
+# Optional Python certifier backend (j16cert.py — mirrors j16_certifier.sv)
+# ---------------------------------------------------------------------------
+# j16cert is expected to live in the same directory as j16sym.py.
+# If it can't be imported (e.g., missing file), the Python-cert path is
+# unavailable and the tool falls back to Icarus or --no-run.
+try:
+    import importlib.util as _ilu
+    _cert_spec = _ilu.spec_from_file_location(
+        "j16cert",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "j16cert.py"),
+    )
+    if _cert_spec and _cert_spec.loader:
+        _j16cert_mod = _ilu.module_from_spec(_cert_spec)
+        sys.modules[_cert_spec.name] = _j16cert_mod
+        _cert_spec.loader.exec_module(_j16cert_mod)   # type: ignore[union-attr]
+        _J16CERT_AVAILABLE = True
+    else:
+        _j16cert_mod = None   # type: ignore[assignment]
+        _J16CERT_AVAILABLE = False
+except Exception:
+    _j16cert_mod = None   # type: ignore[assignment]
+    _J16CERT_AVAILABLE = False
+
+
 def sha256_text(s: str) -> str:
     h = hashlib.sha256()
     h.update(s.encode('utf-8'))
@@ -322,7 +347,7 @@ def _analyze_stack_depth(words: List[int],
         tag = str(i.get('tag') or '')
         ilen = int(i['len'])
         if op == sys_op or fam == 'SYS':
-            # HALT/TRAP terminate.
+            # Any SYS instruction (HALT or TRAP, OP=0xF) is a terminal — no successors.
             return []
         if op == ctrl_op or fam == 'CTRL':
             off = int(i['b'])
@@ -473,11 +498,79 @@ endmodule
 '''
 
 
+def _run_cert_python(
+    hex_path: str,
+    primtab_path: str,
+    allow_path: str,
+) -> Dict[str, Any]:
+    """
+    Run the Python certifier (j16cert.py) against a compiled hex file.
+
+    Returns a dict with keys: ok, prog_len, max_icount, max_cycles.
+    Raises RuntimeError on hard failures (missing j16cert, bad hex, etc.).
+    """
+    if not _J16CERT_AVAILABLE or _j16cert_mod is None:
+        raise RuntimeError(
+            "j16cert.py not available — cannot use Python certifier backend. "
+            "Install j16cert.py next to j16sym.py or use --no-run."
+        )
+
+    mod = _j16cert_mod  # local alias for brevity
+
+    # Load ROM
+    rom = mod.load_readmemh(hex_path, max_words=1024)
+
+    # Load primtab
+    primtab: Dict[int, Any] = {}
+    if os.path.exists(primtab_path):
+        primtab = mod.load_primtab(primtab_path)
+
+    # Load allowfile
+    allow_set = None
+    if os.path.exists(allow_path):
+        allow_set = mod.load_allowfile(allow_path)
+
+    result = mod.certify(rom, primtab, allow_set=allow_set)
+
+    return {
+        "ok":         bool(result.ok),
+        "prog_len":   int(result.prog_len),
+        "max_icount": int(result.max_icount),
+        "max_cycles": int(result.max_cycles),
+        "fail_status": getattr(result, "fail_status", 0),
+        "fail_pc":     getattr(result, "fail_pc", 0),
+        "fail_msg":    getattr(result, "fail_msg", ""),
+    }
+
+
 def cmd_cert(args: argparse.Namespace) -> int:
-    # Tool locations.
+    # Resolve tool locations.
     iverilog = args.iverilog
     vvp = args.vvp
     python = args.python
+
+    # Determine which certification backend to use.
+    #   1. --python-cert (explicit)         → Python certifier (j16cert.py)
+    #   2. iverilog available               → Icarus (original path)
+    #   3. iverilog missing + j16cert found → auto-fallback to Python certifier
+    #   4. --no-run                         → harness generation only (no budgets)
+    use_python_cert: bool = getattr(args, "python_cert", False)
+    if not use_python_cert and not args.no_run:
+        if shutil.which(iverilog) is None:
+            if _J16CERT_AVAILABLE:
+                print(
+                    "j16sym cert: iverilog not found — using Python certifier "
+                    "(j16cert.py) as backend.",
+                    file=sys.stderr,
+                )
+                use_python_cert = True
+            else:
+                print(
+                    "j16sym cert: iverilog/vvp not found. Install Icarus Verilog, "
+                    "place j16cert.py next to j16sym.py, or run with --no-run.",
+                    file=sys.stderr,
+                )
+                return 2
 
     reg_path = os.path.abspath(args.in_path)
     reg = json.loads(read_text(reg_path))
@@ -573,12 +666,6 @@ def cmd_cert(args: argparse.Namespace) -> int:
     # Temporary storage for closure hash computation (filled per symbol during cert loop).
     sym_direct_invoke_fids: Dict[str, List[int]] = {}
     sym_obj_hash: Dict[str, str] = {}
-    # Quick sanity: we can't run certification without Icarus.
-    if not args.no_run:
-        if shutil.which(iverilog) is None or shutil.which(vvp) is None:
-            print('j16sym cert: iverilog/vvp not found. Install Icarus Verilog or run with --no-run.', file=sys.stderr)
-            return 2
-
     # Collect symbols.
     sym_list: List[Tuple[Dict[str, Any], int, str]] = []  # (sym_obj, bank, NAME)
     for bank in reg.get('banks', []) or []:
@@ -617,6 +704,24 @@ def cmd_cert(args: argparse.Namespace) -> int:
 
             base_info = {'max_cycles': 0, 'max_icount': 0, 'prog_len': 0}
             if args.no_run:
+                baseline_cache[pops] = base_info
+            elif use_python_cert:
+                try:
+                    result = _run_cert_python(base_hex, primtab, allow)
+                except Exception as e:
+                    print(f'j16sym cert: Python certifier failed for baseline (pops={pops}): {e}',
+                          file=sys.stderr)
+                    return 1
+                if not result['ok']:
+                    print(f'j16sym cert: baseline (pops={pops}) certification FAILED: '
+                          f'status=0x{result["fail_status"]:04x} pc={result["fail_pc"]} '
+                          f'msg={result["fail_msg"]}', file=sys.stderr)
+                    return 1
+                base_info = {
+                    'prog_len':   result['prog_len'],
+                    'max_icount': result['max_icount'],
+                    'max_cycles': result['max_cycles'],
+                }
                 baseline_cache[pops] = base_info
             else:
                 tb_path = os.path.join(sym_dir, f'__tb_cert_baseline_p{pops}.sv')
@@ -674,11 +779,14 @@ def cmd_cert(args: argparse.Namespace) -> int:
         invoke_op = int(isa_tab['invoke_op'])
 
         if any(((w >> 12) & 0xF) == sys_op for w in obj_words):
-            print(f'j16sym cert: symbol {name} contains SYS inside object (HALT/TRAP forbidden in v0 symbols)', file=sys.stderr)
+            # Checks OP == sys_op (bits [15:12] == 0xF), catching every SYS word
+            # (HALT A=0 and TRAP A=1).  Both are forbidden in a v0 symbol body
+            # because either would terminate the *caller*, not just the invocation.
+            print(f'j16sym cert: symbol {name} contains a SYS instruction (OP=0xF: HALT or TRAP) inside the symbol object; SYS is forbidden in v0 symbol bodies because it would terminate the caller', file=sys.stderr)
             return 1
 
-        if (not args.allow_branches) and any(((w >> 12) & 0xF) == ctrl_op for w in obj_words):
-            print(f'j16sym cert: symbol {name} contains CTRL; v0 certification defaults to straight-line symbols. If you enable --allow-branches, CTRL is permitted but targets must stay within the symbol object (no jumps into harness/prologue/HALT).', file=sys.stderr)
+        if any(((w >> 12) & 0xF) == ctrl_op for w in obj_words):
+            print(f'j16sym cert: symbol {name} contains CTRL; frozen v0 certification requires straight-line symbols and rejects internal CTRL.', file=sys.stderr)
             return 1
 
 
@@ -714,32 +822,30 @@ def cmd_cert(args: argparse.Namespace) -> int:
         # Enforce v0 bank-descending symbol dependencies ("downcalls" only).
         # A symbol in bank B may only CALL/INVOKE symbols in banks < B.
         # This makes the symbol graph a DAG and makes bank placement deterministic.
-        if (not getattr(args, 'allow_non_descending', False)):
-            # (1) Source-level CALL dependencies (pre-inline expansion).
-            if sym.get('src'):
-                src_abs = os.path.normpath(os.path.join(bundle_root, sym.get('src')))
-                calls = _scan_call_symbols(read_text(src_abs))
-                for callee in calls:
-                    if callee not in sym_bank_by_name:
-                        print(f'j16sym cert: {name} CALLs unknown symbol {callee}', file=sys.stderr)
-                        return 1
-                    callee_bank = int(sym_bank_by_name.get(callee, -1))
-                    if callee_bank >= (int(bank_id) & 0xF):
-                        print(f'j16sym cert: bank-descending rule violated: {name}(bank={bank_id}) CALLs {callee}(bank={callee_bank})', file=sys.stderr)
-                        return 1
+        # (1) Source-level CALL dependencies (pre-inline expansion).
+        if sym.get('src'):
+            src_abs = os.path.normpath(os.path.join(bundle_root, sym.get('src')))
+            calls = _scan_call_symbols(read_text(src_abs))
+            for callee in calls:
+                if callee not in sym_bank_by_name:
+                    print(f'j16sym cert: {name} CALLs unknown symbol {callee}', file=sys.stderr)
+                    return 1
+                callee_bank = int(sym_bank_by_name.get(callee, -1))
+                if callee_bank >= (int(bank_id) & 0xF):
+                    print(f'j16sym cert: bank-descending rule violated: {name}(bank={bank_id}) CALLs {callee}(bank={callee_bank})', file=sys.stderr)
+                    return 1
 
         inv_fids = sorted({((w & 0x0FFF) if ((w >> 12) & 0xF) == invoke_op else -1)
                            for w in obj_words} - {-1})
 
         # (2) Object-level INVOKE dependencies (explicit INVOKE fid present in the object words).
-        if (not getattr(args, 'allow_non_descending', False)):
-            for fid in inv_fids:
-                if fid in sym_name_by_fid:
-                    callee_name = sym_name_by_fid[fid]
-                    callee_bank = (fid >> 8) & 0xF
-                    if callee_bank >= (int(bank_id) & 0xF):
-                        print(f'j16sym cert: bank-descending rule violated: {name}(bank={bank_id}) INVOKEs {callee_name}(bank={callee_bank}) fid=0x{fid:04X}', file=sys.stderr)
-                        return 1
+        for fid in inv_fids:
+            if fid in sym_name_by_fid:
+                callee_name = sym_name_by_fid[fid]
+                callee_bank = (fid >> 8) & 0xF
+                if callee_bank >= (int(bank_id) & 0xF):
+                    print(f'j16sym cert: bank-descending rule violated: {name}(bank={bank_id}) INVOKEs {callee_name}(bank={callee_bank}) fid=0x{fid:04X}', file=sys.stderr)
+                    return 1
 
         # Capability checks for dependencies.
         # (A) CALL dependencies.
@@ -805,7 +911,32 @@ def cmd_cert(args: argparse.Namespace) -> int:
             },
         }
 
-        if not args.no_run:
+        if use_python_cert:
+            try:
+                result = _run_cert_python(sym_hex, primtab, allow)
+            except Exception as e:
+                print(f'j16sym cert: Python certifier failed for {name}: {e}',
+                      file=sys.stderr)
+                return 1
+            if not result['ok']:
+                print(f'j16sym cert: {name} certification FAILED: '
+                      f'status=0x{result["fail_status"]:04x} pc={result["fail_pc"]} '
+                      f'msg={result["fail_msg"]}', file=sys.stderr)
+                return 1
+            sym_icount = max(0, result['max_icount'] - int(base_info.get('max_icount', 0)))
+            sym_cycles = max(0, result['max_cycles'] - int(base_info.get('max_cycles', 0)))
+            cert_info.update({
+                'ok':         True,
+                'prog_len':   result['prog_len'],
+                'max_icount': sym_icount,
+                'max_cycles': sym_cycles,
+                'raw': {
+                    'max_icount': result['max_icount'],
+                    'max_cycles': result['max_cycles'],
+                },
+                'backend': 'python',
+            })
+        elif not args.no_run:
             tb_path = os.path.join(sym_dir, f'__tb_cert_{name}.sv')
             _write_file(tb_path, _mk_tb_cert(sym_hex, primtab, allow, True, False))
             out_exe = os.path.join(sym_dir, f'__sim_cert_{name}.out')
@@ -858,7 +989,7 @@ def cmd_cert(args: argparse.Namespace) -> int:
     # Enforce: symbol INVOKE dependency graph must be acyclic.
     # This is a core "banked symbols" safety property: cycles imply recursion.
     # NOTE: if bank-descending is enabled (default), cycles are structurally impossible,
-    # but we keep this check for clear diagnostics (and for --allow-non-descending experiments).
+    # Keep this check for clear diagnostics even though frozen v0 always requires descending bank dependencies.
     def _sym_invoke_edges() -> Dict[str, List[str]]:
         g: Dict[str, List[str]] = {}
         for nm in sym_ref_by_name.keys():
@@ -997,10 +1128,10 @@ def main() -> int:
     ap_c.add_argument('--iverilog', default='iverilog', help='iverilog executable')
     ap_c.add_argument('--vvp', default='vvp', help='vvp executable')
     ap_c.add_argument('--python', default=sys.executable, help='Python executable to run the assembler')
+    ap_c.add_argument('--python-cert', action='store_true',
+                      help='Use Python certifier (j16cert.py) instead of Icarus Verilog. '
+                           'Auto-enabled when iverilog is not found and j16cert.py is available.')
     ap_c.add_argument('--no-run', action='store_true', help='Do not invoke Icarus; still generate harnesses and hashes')
-    ap_c.add_argument('--allow-branches', action='store_true', help='Allow CTRL inside symbols (not recommended for v0 baseline_subtract)')
-    ap_c.add_argument('--allow-non-descending', action='store_true',
-                      help='Allow CALL/INVOKE to same/higher banks (breaks v0 layered bank model; not recommended)')
     ap_c.add_argument('-v', '--verbose', action='store_true', help='Verbose logging')
     ap_c.set_defaults(func=cmd_cert)
 

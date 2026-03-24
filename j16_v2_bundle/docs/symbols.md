@@ -73,8 +73,7 @@ HALT
 
 ### Branches in v0 symbols
 
-By default, v0 symbol certification rejects `CTRL` inside symbol bodies. This keeps budgeting and ABI analysis simple and deterministic.
-If you explicitly want branches inside symbols, pass `--allow-branches` to `j16sym cert` and ensure your budgeting strategy remains sound.
+V0 symbol certification rejects `CTRL` inside symbol bodies. This keeps budgeting and ABI analysis simple, deterministic, and aligned with the frozen rule set.
 
 ### Bank-descending rule (v0 strict)
 
@@ -88,7 +87,7 @@ This means the symbol dependency graph is a DAG by construction, which supports:
 - closure hashing without fixed-point tricks
 - no recursion-by-indirection through `INVOKE`
 
-For experiments you may relax this with `j16sym cert --allow-non-descending`, but it is not v0-compliant.
+This rule is fixed for v0 and is not relaxed in the frozen profile.
 
 
 ### CBM `INVOKE_THEN` lowering note

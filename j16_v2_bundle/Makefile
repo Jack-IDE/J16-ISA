@@ -100,6 +100,7 @@ sym-aliases:
 
 .PHONY: sym-cert
 sym-cert: sym-aliases
+	# Uses Icarus when available; otherwise auto-falls back to tools/j16cert.py if present.
 	python3 tools/j16sym.py cert --in $(SYMBOLS_REG) --out build/symbols_v0_certified.json --build build
 
 .PHONY: asm-sym

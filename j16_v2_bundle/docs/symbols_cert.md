@@ -57,9 +57,24 @@ python3 tools/j16sym.py cert \
 
 ### Requirements
 
-- `iverilog` + `vvp` (Icarus Verilog)
+Certification can run through either backend:
 
-If you want to generate harnesses + hashes without running Icarus:
+- `iverilog` + `vvp` (Icarus Verilog), using the original SystemVerilog certifier path
+- bundled `tools/j16cert.py`, using the Python certifier path
+
+If `iverilog` is unavailable and `tools/j16cert.py` is present next to `tools/j16sym.py`, the symbol tool automatically falls back to the Python backend.
+
+To force the Python backend explicitly:
+
+```bash
+python3 tools/j16sym.py cert \
+  --python-cert \
+  --in symbols/symbols_v0.json \
+  --out build/symbols_v0_certified.json \
+  --build build
+```
+
+If you want to generate harnesses + hashes without running either certifier backend:
 
 ```bash
 python3 tools/j16sym.py cert --in symbols/symbols_v0.json --out build/symbols_v0_certified.json --no-run
@@ -68,8 +83,7 @@ python3 tools/j16sym.py cert --in symbols/symbols_v0.json --out build/symbols_v0
 
 ### Example registry note
 
-The shipped `symbols/symbols_v0.json` is an authoring/example registry and sets `require_certified_symbols: false`.
-After you run `j16sym cert`, point strict consumers at the certified output (for example `build/symbols_v0_certified.json`) or copy the generated `hash.*` and `budget.*` fields back into the registry before enabling strict certified-symbol enforcement.
+The shipped `symbols/symbols_v0.json` is expected to carry certified symbol metadata for the frozen v0 rule set. After you run `j16sym cert`, keep the generated `hash.*` and `budget.*` fields in the active registry so consumers enforce the same single rule set.
 
 ## Registry fields written back
 
@@ -94,8 +108,7 @@ The cert tool now enforces:
 
 - **ABI match**: all possible harness paths must end with **exactly** `abi.pushes` words on the data stack (starting from empty).
 - **No SYS inside symbols**: `HALT` / `TRAP` inside a symbol object is forbidden (it would halt the caller).
-- **(Default) no CTRL inside symbols**: v0 certification uses a harness-based budget strategy (`baseline_subtract`), which assumes straight-line symbol bodies.
-  You may override with `--allow-branches`, but this is not recommended until the budgeting method is upgraded.
+- **No CTRL inside symbols**: v0 certification uses a harness-based budget strategy (`baseline_subtract`), which assumes straight-line symbol bodies. Internal branching is not part of the frozen v0 rule set.
 
 `j16sym cert` also records direct dependencies:
 
@@ -123,7 +136,7 @@ This is the strongest form of "no cyclic dependencies":
 - it makes bank placement deterministic,
 - and it keeps the system non-recursive without adding ISA features.
 
-Override for experiments: `--allow-non-descending` (not v0-compliant).
+Non-descending dependencies are not part of the frozen v0 rule set.
 
 
 ## Capability enforcement (v0)

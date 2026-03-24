@@ -61,23 +61,23 @@
       {
         "name": "ARG",
         "start": "0x00",
-        "end": "0x3F",
+        "end": "0x1F",
         "access": "invoke_only",
         "note": "INVOKE argument marshalling"
       },
       {
         "name": "RES",
-        "start": "0x40",
-        "end": "0x7F",
+        "start": "0x20",
+        "end": "0x3F",
         "access": "invoke_only",
         "note": "INVOKE result marshalling"
       },
       {
         "name": "USER",
-        "start": "0x80",
+        "start": "0x40",
         "end": "0xFD",
         "access": "program_rw",
-        "note": "User program RAM"
+        "note": "User program RAM (190 words)"
       },
       {
         "name": "AUX",
@@ -96,23 +96,23 @@
     ],
     "rules": {
       "program_memops_forbidden": [
-        "0x00..0x7F",
+        "0x00..0x3F",
         "0xFE..0xFF"
       ],
       "program_memop_violation_fault": "ST_MEM_PROT",
       "invoke_membus_limited_to": [
-        "0x00..0x7F"
+        "0x00..0x3F"
       ],
       "invoke_membus_violation": "ST_MEM_PROT"
     },
     "constants": {
       "ARG_BASE": "0x00",
-      "RES_BASE": "0x40",
-      "USER_START": "0x80",
+      "RES_BASE": "0x20",
+      "USER_START": "0x40",
       "USER_END": "0xFD",
       "AUX_ADDR": "0xFE",
       "STATUS_ADDR": "0xFF",
-      "PROT_LO_END": "0x7F",
+      "PROT_LO_END": "0x3F",
       "PROT_HI_START": "0xFE"
     }
   },
@@ -457,16 +457,16 @@
       "invoke_stack_overflow_check": "If DSP - pops + pushes > 256, fault ST_DSTACK_OF before execution",
       "abi": {
         "arg_base": "0x00",
-        "res_base": "0x40",
-        "max_args": 64,
-        "max_rets": 64,
+        "res_base": "0x20",
+        "max_args": 32,
+        "max_rets": 32,
         "status_addr": "0xFF",
         "aux_addr": "0xFE",
-        "primitive_membus_range": "0x00..0x7F ONLY. Primitive access outside this range faults ST_MEM_PROT.",
+        "primitive_membus_range": "0x00..0x3F ONLY. Primitive access outside this range faults ST_MEM_PROT.",
         "marshalling": [
           "1. Pop pops args from data stack; arg0 is original TOS",
           "2. mem[ARG_BASE+i] = arg_i for i=0..pops-1",
-          "3. Primitive runs on inv_valid handshake; may access mem[0x00..0x7F] via inv_mem_* bus only",
+          "3. Primitive runs on inv_valid handshake; may access mem[0x00..0x3F] via inv_mem_* bus only",
           "4. On inv_done: mem[STATUS]=status, mem[AUX]=aux",
           "5. Push mem[RES_BASE+j] for j=0..pushes-1"
         ]

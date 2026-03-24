@@ -8,8 +8,8 @@
         LIT16 0x1111
         LIT16 0x2222
         INVOKE 0x0001
-        ST 0x80
-        LD 0x80
+        ST 0x40
+        LD 0x40
         LIT16 0x3333
         EQ
         JNZ ok

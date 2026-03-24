@@ -6,7 +6,7 @@
 //   - No CALL, no RET, no return stack.
 //   - Backward branches (B[7]=1) are ST_ILLEGAL_ENC, not a runtime mode check.
 //   - MEM to protected regions is ST_MEM_PROT.
-//   - INVOKE mem-bus is restricted to 0x00..0x7F.
+//   - INVOKE mem-bus is restricted to 0x00..0x3F.
 //   - LIT16 (OP=0x6) consumes the next ROM word and advances PC by 2.
 //   - Stack overflow pre-checked before INVOKE result push.
 //
@@ -49,7 +49,7 @@ package j16_ref_pkg;
   // Primitives are a closed, registered set. This virtual class is for simulation only.
   // In hardware, primitives are fixed silicon blocks, not dynamic dispatch.
   virtual class J16Prim;
-    // Primitive must access only mem[0x00..0x7F] via this interface.
+    // Primitive must access only mem[0x00..0x3F] via this interface.
     // Attempting to access outside this range triggers ST_MEM_PROT.
     pure virtual function void invoke(
       inout logic [15:0] mem [0:255],

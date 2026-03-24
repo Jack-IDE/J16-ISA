@@ -1,7 +1,7 @@
 // Auto-generated from docs/isa_v2.json (J16 ISA v2, v2.0)
 // DO NOT EDIT BY HAND. Run: make gen-isa
-// JSON sha256: ac01233c0ce0
-// Generated: 2026-02-25
+// JSON sha256: a32a5f8cb1e4
+// Generated: 2026-03-23
 //
 // Design intent: Non-Turing-complete ISA. Security properties are structural.
 // CALL/RET do not exist. Backward branches are illegal encodings.
@@ -69,17 +69,17 @@ package j16_isa_pkg;
 
   // === Memory map (frozen) ===
   localparam logic [7:0]  ARG_BASE             = 8'h00;
-  localparam logic [7:0]  RES_BASE             = 8'h40;
-  localparam logic [7:0]  USER_START           = 8'h80;
+  localparam logic [7:0]  RES_BASE             = 8'h20;
+  localparam logic [7:0]  USER_START           = 8'h40;
   localparam logic [7:0]  USER_END             = 8'hFD;
   localparam logic [7:0]  AUX_ADDR             = 8'hFE;
   localparam logic [7:0]  STATUS_ADDR          = 8'hFF;
-  localparam logic [7:0]  PROT_LO_END          = 8'h7F;
+  localparam logic [7:0]  PROT_LO_END          = 8'h3F;
   localparam logic [7:0]  PROT_HI_START        = 8'hFE;
 
   // ABI dimensions
-  localparam int unsigned ABI_MAX_ARGS = 64;
-  localparam int unsigned ABI_MAX_RETS = 64;
+  localparam int unsigned ABI_MAX_ARGS = 32;
+  localparam int unsigned ABI_MAX_RETS = 32;
 
   // === Status codes (frozen) ===
   localparam logic [15:0] ST_OK                  = 16'h0000;

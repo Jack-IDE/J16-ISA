@@ -644,7 +644,6 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="J16 v2 assembler")
     ap.add_argument("--isa", required=True, help="Path to docs/isa_v2.json")
     ap.add_argument("--symbols", default="", help="Optional build/symbols_aliases.json to expand CALL <SYMBOL>")
-    ap.add_argument("--require-certified-symbols", action="store_true", help="Fail assembly if any CALL <SYM> refers to an uncertified/unbudgeted symbol entry (recommended for shipping banks).")
     ap.add_argument("--in", dest="in_path", required=True, help="Input .s file")
     ap.add_argument("--out", required=True, help="Output .hex file (16-bit words)")
     ap.add_argument("--sym", default="", help="Optional output .sym file")
@@ -657,7 +656,7 @@ def main() -> int:
         src_text = open(args.in_path, "r", encoding="utf-8").read()
         symbols = load_symbols_aliases(args.symbols)
         if symbols:
-            src_text = preprocess_call_symbols(args.in_path, src_text, symbols, require_certified=bool(args.require_certified_symbols))
+            src_text = preprocess_call_symbols(args.in_path, src_text, symbols, require_certified=True)
         words, sym, listing = assemble(
             isa=isa,
             src_path=args.in_path,

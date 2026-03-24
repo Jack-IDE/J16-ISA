@@ -36,10 +36,9 @@ Enforced by `tools/j16sym.py cert`:
 - It enforces **boundary-only** CTRL targets and **forward-only** CTRL (J16 rule).
 - It rejects any CTRL that jumps outside the symbol object (e.g. into harness prologue/HALT).
 
-Optional assembler hardening:
-- `tools/j16asm.py --require-certified-symbols` will fail assembly if any `CALL <SYM>`
-  refers to a symbol entry missing ABI/budget data. This prevents the “assembled but never certified”
-  footgun when shipping a banked-symbol platform.
+Assembler rule:
+- `CALL <SYM>` must resolve to a symbol entry with certified ABI/budget/hash data.
+  This is part of the frozen banked-symbol toolchain model and prevents the "assembled but never certified" footgun.
 
 ## Gate C — Worst-case bound safety (baseline_subtract + branches)
 
@@ -48,9 +47,8 @@ harnessed cert run. The risky case is letting internal branches “escape” int
 violate the model and (in the worst case) compromise bounds.
 
 This repo enforces:
-- By default, symbols must be straight-line (`CTRL` forbidden).
-- With `--allow-branches`, `CTRL` is permitted **only if** targets stay within the symbol object.
-  Branching into the harness (including the final `HALT`) is rejected.
+- Symbols must be straight-line (`CTRL` forbidden).
+- Any internal `CTRL` is rejected for the frozen v0 rule set. Branching into the harness (including the final `HALT`) is rejected.
 
 ## Gate D — Semantic coverage suites
 

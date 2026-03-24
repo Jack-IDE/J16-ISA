@@ -41,4 +41,4 @@ Notes:
 - It also makes bank placement deterministic: every edge points "down."
 - Primitives live in bank 0, so any symbol may `INVOKE` primitives.
 
-You can override this for experiments with `j16sym cert --allow-non-descending`, but that is not v0-compliant.
+This rule is fixed for v0 and is not relaxed in the frozen profile.

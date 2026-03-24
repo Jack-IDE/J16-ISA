@@ -1,0 +1,78 @@
+{
+  "banks": [
+    {
+      "allow_prim_caps": [
+        "pure"
+      ],
+      "bank": 1,
+      "caps": [
+        "pure"
+      ],
+      "name": "corelib",
+      "symbols": [
+        {
+          "abi": {
+            "pops": 2,
+            "pushes": 1
+          },
+          "budget": {
+            "max_cycles": 2,
+            "max_icount": 1
+          },
+          "caps": [
+            "pure"
+          ],
+          "cert": {
+            "abi_check": {
+              "exits": [
+                {
+                  "depth": 1,
+                  "pc": 0,
+                  "tag": "ADD"
+                }
+              ],
+              "merge_mismatch_pcs": [],
+              "msg": null,
+              "ok": true
+            },
+            "backend": "python",
+            "baseline": {
+              "max_cycles": 10,
+              "max_icount": 3,
+              "prog_len": 5
+            },
+            "deps": {
+              "invoke_fids": [],
+              "invoke_prims": [],
+              "invoke_symbols": []
+            },
+            "harness_words": 6,
+            "max_cycles": 2,
+            "max_icount": 1,
+            "method": "baseline_subtract",
+            "obj_hash": "sha256:d1cbc88c2eff99f1eadd6d6c36795cc8aa2ce30bef7c40702290a0363ecec7b4",
+            "obj_words": 1,
+            "ok": true,
+            "prog_len": 6,
+            "raw": {
+              "max_cycles": 12,
+              "max_icount": 4
+            }
+          },
+          "hash": {
+            "closure_hash": "sha256:a74356de883f4f0b0eada3492a386d406172937ba74b97d3263a15e0123f9ff4",
+            "obj_hash": "sha256:d1cbc88c2eff99f1eadd6d6c36795cc8aa2ce30bef7c40702290a0363ecec7b4",
+            "src_hash": "sha256:c1f5412f873b7f26213a6807b0e3d3c104681ea9d5bec44fe949d952b8e27df9"
+          },
+          "index": 0,
+          "name": "ADD16",
+          "src": "sym/corelib/add16.s"
+        }
+      ],
+      "version": "0.1.0"
+    }
+  ],
+  "format": "j16.symbols.v0",
+  "isa": "docs/isa_v2.json",
+  "require_certified_symbols": true
+}

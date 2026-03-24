@@ -79,12 +79,12 @@ SYS_TRAP = 0x1
 
 # Memory map (frozen)
 ARG_BASE    = 0x00
-RES_BASE    = 0x40
-USER_START  = 0x80
+RES_BASE    = 0x20
+USER_START  = 0x40
 USER_END    = 0xFD
 AUX_ADDR    = 0xFE
 STATUS_ADDR = 0xFF
-PROT_LO_END    = 0x7F   # 0x00..0x7F  protected (ARG/RES)
+PROT_LO_END    = 0x3F   # 0x00..0x3F  protected (ARG/RES)
 PROT_HI_START  = 0xFE   # 0xFE..0xFF  protected (AUX/STATUS)
 
 # Status codes (frozen)
@@ -164,6 +164,10 @@ def load_readmemh(path: Path, word_bytes: int = 2, max_words: int = 1024) -> lis
                 continue
             if line.startswith("@"):
                 cursor = int(line[1:], 16)
+                if cursor >= max_words:
+                    print(f"J16SIM WARN: @address directive 0x{cursor:x} in {path.name} "
+                          f"is >= max_words ({max_words}); subsequent words will be discarded.",
+                          file=sys.stderr)
                 continue
             # May be multiple tokens per line
             for tok in line.split():

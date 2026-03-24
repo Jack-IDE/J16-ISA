@@ -6,8 +6,8 @@
 //   - Backward branches (B[7]=1) fault ST_ILLEGAL_ENC, not a "profile violation."
 //     There is no profile to violate. This is just an illegal instruction.
 //   - OP=0x4 A>=0x3: permanently ST_ILLEGAL_ENC.
-//   - MEM to 0x00..0x7F or 0xFE..0xFF: ST_MEM_PROT.
-//   - INVOKE primitive mem-bus: restricted to 0x00..0x7F only.
+//   - MEM to 0x00..0x3F or 0xFE..0xFF: ST_MEM_PROT.
+//   - INVOKE primitive mem-bus: restricted to 0x00..0x3F only.
 //   - LIT16 (OP=0x6): two-cycle fetch of next ROM word as 16-bit literal.
 //   - Pre-INVOKE stack overflow check before any execution.
 //
@@ -54,7 +54,7 @@ module j16_core #(
   input  logic [15:0] inv_status,
   input  logic [15:0] inv_aux,
 
-  // Primitive-to-core memory bus (ARG/RES region ONLY: 0x00..0x7F)
+  // Primitive-to-core memory bus (ARG/RES region ONLY: 0x00..0x3F)
   // Primitive attempting to access outside this range will be blocked; core asserts inv_mem_prot.
   input  logic        inv_mem_valid,
   input  logic        inv_mem_we,
@@ -220,13 +220,13 @@ module j16_core #(
   assign imem_addr = (arch_pc < 32'(PWORDS)) ? arch_pc[$clog2(PROG_WORDS)-1:0] : '0;
 
   // =========================================================================
-  // Primitive memory bus — restricted to ARG/RES region (0x00..0x7F)
+  // Primitive memory bus — restricted to ARG/RES region (0x00..0x3F)
   // =========================================================================
   always_comb begin
     inv_mem_rdata = 16'h0;
     inv_mem_prot  = 1'b0;
     if (inv_mem_valid) begin
-      if (inv_mem_addr > 8'h7F) begin
+      if (inv_mem_addr > PROT_LO_END) begin
         // Primitive attempting to access outside its allowed region
         inv_mem_prot = 1'b1;
       end else begin
@@ -704,11 +704,11 @@ if (!mem_fault) begin
                   do_fault_here(arch_pc, imem_rdata, ST_ILLEGAL_ENC, fid);
                 end
                 // Pre-flight stack bounds check
-                else if (dsp < {1'b0, meta.pops}) begin
-                  do_fault_here(arch_pc, imem_rdata, ST_DSTACK_UF, fid);
-                end
                 else if (int'(dsp) - int'(meta.pops) + int'(meta.pushes) > 256) begin
                   do_fault_here(arch_pc, imem_rdata, ST_DSTACK_OF, fid);
+                end
+                else if (dsp < {1'b0, meta.pops}) begin
+                  do_fault_here(arch_pc, imem_rdata, ST_DSTACK_UF, fid);
                 end
                 else begin
                   // Latch metadata, begin argument marshalling
